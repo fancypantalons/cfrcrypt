@@ -1,0 +1,213 @@
+#!/usr/bin/perl
+
+use strict;
+
+use IO::File;
+use Getopt::Long;
+
+our @KEY = (0xD6F63E19, 0x1AF08BEF);
+our $HEADER = "ColdFusion Report Template\x1A";
+
+##############################################################################
+#
+# XTEA Crypto algorithm, translated to Perl from the reference implementation
+# on Wikipedia at:
+#
+# http://en.wikipedia.org/wiki/XTEA
+#
+
+our $DELTA = 0x9E3779B9;
+our $NUM_ROUNDS = 32;
+
+sub decrypt_block
+{
+  my ($vref, $kref) = @_;
+  my ($v0, $v1) = @$vref;
+  my @k = @$kref;
+
+  my $sum = ($DELTA * $NUM_ROUNDS) & 0xFFFFFFFF;
+  my ($a, $b, $c);
+ 
+  for (my $i = 0; $i < $NUM_ROUNDS; $i++)
+  {
+    $a = ($v0 << 4) & 0xFFFFFFFF;
+    $b = $v0 >> 5;
+    $c = ($sum + $k[($sum >> 11) & 0x03]) & 0xFFFFFFFF;
+
+    $v1 -= (($a ^ $b) + $v0) ^ $c;
+    $v1 &= 0xFFFFFFFF;
+
+    #####
+    
+    $sum = ($sum - $DELTA) & 0xFFFFFFFF;
+
+    #####
+
+    $a = ($v1 << 4) & 0xFFFFFFFF;
+    $b = $v1 >> 5;
+    $c = ($sum + $k[$sum & 0x03]) & 0xFFFFFFFF;
+
+    $v0 -= (($a ^ $b) + $v1) ^ $c;
+    $v0 &= 0xFFFFFFFF;
+  }
+
+  $vref->[0] = $v0;
+  $vref->[1] = $v1;
+}
+
+sub encrypt_block
+{
+  my ($vref, $kref) = @_;
+  my ($v0, $v1) = @$vref;
+  my @k = @$kref;
+
+  my $sum = 0;
+  my ($a, $b, $c);
+ 
+  for (my $i = 0; $i < $NUM_ROUNDS; $i++)
+  {
+    $a = ($v1 << 4) & 0xFFFFFFFF;
+    $b = $v1 >> 5;
+    $c = ($sum + $k[$sum & 0x03]) & 0xFFFFFFFF;
+
+    $v0 += (($a ^ $b) + $v1) ^ $c;
+    $v0 &= 0xFFFFFFFF;
+
+    #####
+    
+    $sum = ($sum + $DELTA) & 0xFFFFFFFF;
+
+    #####
+    
+    $a = ($v0 << 4) & 0xFFFFFFFF;
+    $b = $v0 >> 5;
+    $c = ($sum + $k[($sum >> 11) & 0x03]) & 0xFFFFFFFF;
+
+    $v1 += (($a ^ $b) + $v0) ^ $c;
+    $v1 &= 0xFFFFFFFF;
+  }
+
+  $vref->[0] = $v0;
+  $vref->[1] = $v1;
+}
+
+##############################################################################
+#
+# Decrypt the contents of the provided file handle.
+#
+
+sub decrypt
+{
+  my ($input, $output) = @_;
+
+  my @k = (0, @KEY, 0);
+  my @v;
+  my ($header, $garbage);
+
+  $input->read($header, 27); # Reader header
+
+  die "Missing magic!" if ($header ne $HEADER);
+
+  $input->read($garbage, 4);
+  $input->read($k[3], 4);
+  $input->read($k[0], 4);
+  
+  $k[0] = unpack("V", $k[0]);
+  $k[3] = unpack("V", $k[3]);
+
+  while (1)
+  {
+    my $v0len = $input->read($v[0], 4);
+    my $v1len = $input->read($v[1], 4);
+
+    # Pad out to our block size and unpack as integers.
+
+    $v[0] = unpack("V", $v[0] . "\0"x(4 - $v0len));
+    $v[1] = unpack("V", $v[1] . "\0"x(4 - $v1len));
+
+    decrypt_block(\@v, \@k);
+
+    $v[0] = pack("V", $v[0]);
+    $v[1] = pack("V", $v[1]);
+
+    $output->write(substr(($v[0] . $v[1]), 0, $v0len + $v1len));
+
+    last if (($v0len < 4) || ($v1len < 4));
+  }
+
+  $output->flush();
+  $output->close();
+}
+
+sub encrypt
+{
+  my ($input, $output) = @_;
+
+  my @k = (0, @KEY, 0);
+  my @v;
+
+  $output->write($HEADER);
+  $output->write(pack("V", 0));
+  $output->write(pack("V", $k[3]));
+  $output->write(pack("V", $k[0]));
+
+  while (1)
+  {
+    my $v0len = $input->read($v[0], 4);
+    my $v1len = $input->read($v[1], 4);
+
+    # Pad out to our block size and unpack as integers.
+
+    $v[0] = unpack("V", $v[0] . "\0"x(4 - $v0len));
+    $v[1] = unpack("V", $v[1] . "\0"x(4 - $v1len));
+
+    encrypt_block(\@v, \@k);
+
+    $v[0] = pack("V", $v[0]);
+    $v[1] = pack("V", $v[1]);
+
+    $output->write(substr(($v[0] . $v[1]), 0, $v0len + $v1len));
+
+    last if (($v0len < 4) || ($v1len < 4));
+  }
+
+  $output->flush();
+  $output->close();
+}
+
+my %options;
+
+Getopt::Long::Configure("passthrough");
+
+GetOptions("d|decrypt" => \$options{"decrypt"},
+           "e|encrypt" => \$options{"encrypt"},
+           "o|output=s" => \$options{"output"}); 
+
+my $input = new IO::Handle();
+my $output = new IO::Handle();
+
+$input->fdopen(fileno(STDIN), "r");
+$output->fdopen(fileno(STDOUT), "w");
+ 
+if (defined $ARGV[0])
+{
+  $input = new IO::File("<" . $ARGV[0]) || die "Unable to open '$ARGV[0]': $!";
+
+  IO::File::binmode($input);
+}
+
+if ($options{output})
+{
+  $output = new IO::File(">" . $options{output}) || die "Unable to open '$options{output}': $!";
+
+  IO::File::binmode($output);
+}
+
+if ($options{decrypt})
+{
+  decrypt($input, $output);
+}
+elsif ($options{encrypt})
+{
+  encrypt($input, $output);
+}
