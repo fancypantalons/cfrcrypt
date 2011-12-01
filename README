@@ -1,77 +1,69 @@
-CFRCRYPT(1)           User Contributed Perl Documentation          CFRCRYPT(1)
+NAME
+    cfrcrypt - A tool to encrypt or decrypt ColdFusion Report files.
 
+SYNOPSIS
+      cfrcrypt [-e|-d] <-o output> <input>
 
+DESCRIPTION
+    ColdFusion sports a custom report file format (.cfr) which is,
+    unfortunately, encoded, such that these files become opaque blobs which
+    cannot be version controlled, modified via scripts, etc. This tool makes
+    it possible to decode these files, modify them, and then re-encode them
+    for use with ColdFusion.
 
-NNAAMMEE
-       cfrcrypt - A tool to encrypt or decrypt ColdFusion Report files.
+    By default, the tool reads from standard input and writes to standard
+    output. However, if an input file is specified, the data is read from
+    that location, and if an output file is specified, the results are
+    written there (note, the file indicated is overwritten).
 
-SSYYNNOOPPSSIISS
-         cfrcrypt [-e|-d] <-o output> <input>
+OPTIONS
+    Note, either -e or -d must be specified. All other arguments are
+    optional.
 
-DDEESSCCRRIIPPTTIIOONN
-       ColdFusion sports a custom report file format (.cfr) which is,
-       unfortunately, encoded, such that these files become opaque blobs which
-       cannot be version controlled, modified via scripts, etc.  This tool
-       makes it possible to decode these files, modify them, and then re-
-       encode them for use with ColdFusion.
+    -e      Encrypt the input data provided.
 
-       By default, the tool reads from standard input and writes to standard
-       output.  However, if an input file is specified, the data is read from
-       that location, and if an output file is specified, the results are
-       written there (note, the file indicated is overwritten).
+    -d      Decrypt the input data provided.
 
-OOPPTTIIOONNSS
-       Note, either --ee or --dd mmuusstt be specified.  All other arguments are
-       optional.
+    -o      Write the output to the specified file.
 
-       --ee      Encrypt the input data provided.
+FILE FORMAT
+    ColdFusion report file is structured with a header of 39 bytes, followed
+    by an XTEA-encrypted payload. XTEA (http://en.wikipedia.org/wiki/XTEA)
+    is a simple symmetric cipher employing 64-bit blocks and a 128-bit key.
+    The actual file structure is as follows:
 
-       --dd      Decrypt the input data provided.
+      | Header (27) | Unused (4) |
+      | K4 (4)      | K0 (4)     |
+      |           Data           |
 
-       --oo      Write the output to the specified file.
+    Where K0 and K4 represent the first and last 32-bit words of the key.
+    The middle 64 bits are a hard-coded shared key.
 
-FFIILLEE FFOORRMMAATT
-       ColdFusion report file is structured with a header of 39 bytes,
-       followed by an XTEA-encrypted payload.  XTEA
-       (http://en.wikipedia.org/wiki/XTEA) is a simple symmetric cipher
-       employing 64-bit blocks and a 128-bit key.  The actual file structure
-       is as follows:
+COPYRIGHT, LICENSE AND WARRANTY
+    Copyright (C) 2011 by Brett Kosinski
 
-         | Header (27) | Unused (4) |
-         | K4 (4)      | K0 (4)     |
-         |           Data           |
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the
+    "Software"), to deal in the Software without restriction, including
+    without limitation the rights to use, copy, modify, merge, publish,
+    distribute, sublicense, and/or sell copies of the Software, and to
+    permit persons to whom the Software is furnished to do so, subject to
+    the following conditions:
 
-       Where K0 and K4 represent the first and last 32-bit words of the key.
-       The middle 64 bits are a hard-coded shared key.
+    The above copyright notice and this permission notice shall be included
+    in all copies or substantial portions of the Software.
 
-CCOOPPYYRRIIGGHHTT,, LLIICCEENNSSEE AANNDD WWAARRRRAANNTTYY
-       Copyright (C) 2011 by Brett Kosinski
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+    OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-       Permission is hereby granted, free of charge, to any person obtaining a
-       copy of this software and associated documentation files (the
-       "Software"), to deal in the Software without restriction, including
-       without limitation the rights to use, copy, modify, merge, publish,
-       distribute, sublicense, and/or sell copies of the Software, and to
-       permit persons to whom the Software is furnished to do so, subject to
-       the following conditions:
+AUTHOR
+    This software was originally written by Brett Kosinski, and you can find
+    it's home on github at:
 
-       The above copyright notice and this permission notice shall be included
-       in all copies or substantial portions of the Software.
+    https://github.com/fancypantalons/cfrcrypt
 
-       THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-       OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-       MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-       IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-       CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-       TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-       SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-AAUUTTHHOORR
-       This software was originally written by Brett Kosinski, and you can
-       find it's home on github at:
-
-       https://github.com/fancypantalons/cfrcrypt
-
-
-
-perl v5.12.4                      2011-12-01                       CFRCRYPT(1)
