@@ -156,17 +156,20 @@ sub encrypt
     my $v0len = $input->read($v[0], 4);
     my $v1len = $input->read($v[1], 4);
 
-    # Pad out to our block size and unpack as integers.
+    if (($v0len + $v1len) > 0)
+    {
+      # Pad out to our block size and unpack as integers.
 
-    $v[0] = unpack("V", $v[0] . "\0"x(4 - $v0len));
-    $v[1] = unpack("V", $v[1] . "\0"x(4 - $v1len));
+      $v[0] = unpack("V", $v[0] . " "x(4 - $v0len));
+      $v[1] = unpack("V", $v[1] . " "x(4 - $v1len));
 
-    encrypt_block(\@v, \@k);
+      encrypt_block(\@v, \@k);
 
-    $v[0] = pack("V", $v[0]);
-    $v[1] = pack("V", $v[1]);
+      $v[0] = pack("V", $v[0]);
+      $v[1] = pack("V", $v[1]);
 
-    $output->write(substr(($v[0] . $v[1]), 0, $v0len + $v1len));
+      $output->write($v[0] . $v[1]);
+    }
 
     last if (($v0len < 4) || ($v1len < 4));
   }
@@ -181,7 +184,29 @@ Getopt::Long::Configure("passthrough");
 
 GetOptions("d|decrypt" => \$options{"decrypt"},
            "e|encrypt" => \$options{"encrypt"},
-           "o|output=s" => \$options{"output"}); 
+           "o|output=s" => \$options{"output"},
+           "h|help" => \$options{"help"}); 
+
+if ($options{help})
+{
+  print <<HELP;
+Usage: cfrcrypt [-e|-d] <-o output> <file>
+Decrypts or encrypts ColdFusion Report files.  If no input file is specified,
+reads from standard input.
+
+Mandatory options:
+
+  -e - Encrypt the input data.
+  -d - Decrypt the input data.
+
+Optional arguments:
+
+  -o <filename> - An output file to write to.  Writes to standard output if
+                  no output file name is specified.
+
+  -h            - Display this help page.
+HELP
+}
 
 my $input = new IO::Handle();
 my $output = new IO::Handle();
@@ -211,3 +236,91 @@ elsif ($options{encrypt})
 {
   encrypt($input, $output);
 }
+
+__END__
+
+=head1 NAME
+
+cfrcrypt - A tool to encrypt or decrypt ColdFusion Report files.
+
+=head1 SYNOPSIS
+
+  cfrcrypt [-e|-d] <-o output> <input>
+
+=head1 DESCRIPTION
+
+ColdFusion sports a custom report file format (.cfr) which is, unfortunately,
+encoded, such that these files become opaque blobs which cannot be version
+controlled, modified via scripts, etc.  This tool makes it possible to decode
+these files, modify them, and then re-encode them for use with ColdFusion.
+
+By default, the tool reads from standard input and writes to standard output.
+However, if an input file is specified, the data is read from that location,
+and if an output file is specified, the results are written there (note, the
+file indicated is overwritten).
+
+=head1 OPTIONS
+
+Note, either B<-e> or B<-d> B<must> be specified.  All other arguments are 
+optional.
+
+=over 8
+
+=item B<-e>
+
+Encrypt the input data provided.
+
+=item B<-d>
+
+Decrypt the input data provided.
+
+=item B<-o>
+
+Write the output to the specified file.
+
+=back
+
+=head1 FILE FORMAT
+
+ColdFusion report file is structured with a header of 39 bytes, followed by an
+XTEA-encrypted payload.  XTEA (http://en.wikipedia.org/wiki/XTEA) is a simple
+symmetric cipher employing 64-bit blocks and a 128-bit key.  The actual file
+structure is as follows:
+
+  | Header (27) | Unused (4) |
+  | K4 (4)      | K0 (4)     |
+  |           Data           |
+
+Where K0 and K4 represent the first and last 32-bit words of the key.  The middle 
+64 bits are a hard-coded shared key.
+
+=head1 COPYRIGHT, LICENSE AND WARRANTY
+
+Copyright (C) 2011 by Brett Kosinski
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+=head1 AUTHOR
+
+This software was originally written by Brett Kosinski, and you can find
+it's home on github at:
+
+https://github.com/fancypantalons/cfrcrypt
+
+=cut
