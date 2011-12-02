@@ -3,6 +3,7 @@
 use strict;
 
 use IO::File;
+use File::Temp;
 use Getopt::Long;
 
 our @KEY = (0xD6F63E19, 0x1AF08BEF);
@@ -104,7 +105,7 @@ sub decrypt
   my @v;
   my ($header, $garbage);
 
-  $input->read($header, 27); # Reader header
+  $input->read($header, length($HEADER)); # Reader header
 
   die "Missing magic!" if ($header ne $HEADER);
 
@@ -178,6 +179,11 @@ sub encrypt
   $output->close();
 }
 
+############################
+#
+# Parse our arguments.
+#
+
 my %options;
 
 Getopt::Long::Configure("passthrough");
@@ -208,33 +214,95 @@ Optional arguments:
 HELP
 }
 
-my $input = new IO::Handle();
-my $output = new IO::Handle();
+############################
+#
+# Set up the input streams.
+#
 
-$input->fdopen(fileno(STDIN), "r");
-$output->fdopen(fileno(STDOUT), "w");
- 
+my ($input, $output);
+
 if (defined $ARGV[0])
 {
+  # A file name was specified, read our input from there
+
   $input = new IO::File("<" . $ARGV[0]) || die "Unable to open '$ARGV[0]': $!";
 
   IO::File::binmode($input);
 }
+else
+{
+  # Otherwise, read the data from standard input, write it out to a temporary
+  # file, and then operate on the temporary copy (which allows us to seek around
+  # in the file).
+
+  my ($buf, $read);
+  my $stdin = new IO::Handle();
+
+  $stdin->fdopen(fileno(STDIN), "r");
+
+  $input = new File::Temp();
+
+  while (($read = $stdin->read($buf, 1024)) > 0)
+  {
+    $input->write($buf, $read);
+  }
+
+  $input->seek(0, 0);
+}
 
 if ($options{output})
 {
+  # If an output file was specified, write the output there.
+
   $output = new IO::File(">" . $options{output}) || die "Unable to open '$options{output}': $!";
 
   IO::File::binmode($output);
 }
-
-if ($options{decrypt})
+else
 {
+  # Otherwise, write to standard output.
+  
+  $output = new IO::Handle();
+  $output->fdopen(fileno(STDOUT), "w");
+}
+
+############################
+#
+# Now perform the operation.
+#
+
+if ($options{decrypt} || ($ARGV[0] =~ /\.cfr$/i))
+{
+  # If the decrypt option was specified or the filename provided ends in .cfr,
+  # decrypt.
+
   decrypt($input, $output);
 }
 elsif ($options{encrypt})
 {
+  # If the encrypt option was specified, just encrypt straight away.
+  
   encrypt($input, $output);
+}
+else
+{
+  # Otherwise, we gotta check the magic header string.  So read enough bytes
+  # to cover the header, and see if the header was there.  If it was, 
+  # decrypt, otherwise encrypt.
+ 
+  my $header;
+
+  $input->read($header, length($HEADER)); # Reader header
+  $input->seek(0, 0);
+
+  if ($header eq $HEADER)
+  {
+    decrypt($input, $output);
+  }
+  else
+  {
+    encrypt($input, $output);
+  }
 }
 
 __END__
@@ -245,7 +313,7 @@ cfrcrypt - A tool to encrypt or decrypt ColdFusion Report files.
 
 =head1 SYNOPSIS
 
-  cfrcrypt [-e|-d] <-o output> <input>
+cfrcrypt <-e|-d> <-o output> <input>
 
 =head1 DESCRIPTION
 
@@ -259,10 +327,25 @@ However, if an input file is specified, the data is read from that location,
 and if an output file is specified, the results are written there (note, the
 file indicated is overwritten).
 
-=head1 OPTIONS
+If neither B<-e> nor B<-d> are specified, the operation to be performed is 
+inferred based on the input data:
 
-Note, either B<-e> or B<-d> B<must> be specified.  All other arguments are 
-optional.
+=over 8
+
+=item
+
+If an explicit input file name is specified, then the name is checked to see if
+it ends in ".cfr".  If so, the file is decrypted, otherwise it's encrypted.
+
+=item
+
+If the tool is reading from standard input, the data is checked for a magic
+header string present in all ColdFusion Report files.  If that string is
+present, the data is decrypted.  Otherwise the data is encrypted.
+
+=back
+
+=head1 OPTIONS
 
 =over 8
 
