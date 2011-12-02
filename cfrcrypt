@@ -196,22 +196,27 @@ GetOptions("d|decrypt" => \$options{"decrypt"},
 if ($options{help})
 {
   print <<HELP;
-Usage: cfrcrypt [-e|-d] <-o output> <file>
+Usage: cfrcrypt <-e|-d> <-o output> <file>
+
 Decrypts or encrypts ColdFusion Report files.  If no input file is specified,
 reads from standard input.
 
-Mandatory options:
+Options:
 
-  -e - Encrypt the input data.
-  -d - Decrypt the input data.
-
-Optional arguments:
-
+  -e            - Encrypt the input data.
+  -d            - Decrypt the input data.
   -o <filename> - An output file to write to.  Writes to standard output if
                   no output file name is specified.
-
   -h            - Display this help page.
+
+If no explicit operation is specified, the type of operation to perform is 
+inferred first by the filename extension, if an explicit file name was
+specified, or by the input data itself, by searching for a header magic
+string.
+
 HELP
+
+  exit(0);
 }
 
 ############################
@@ -304,6 +309,8 @@ else
     encrypt($input, $output);
   }
 }
+
+exit(0);
 
 __END__
 
