@@ -4,7 +4,7 @@ cfrcrypt - A tool to encrypt or decrypt ColdFusion Report files.
 
 =head1 SYNOPSIS
 
-  cfrcrypt [-e|-d] <-o output> <input>
+cfrcrypt <-e|-d> <-o output> <input>
 
 =head1 DESCRIPTION
 
@@ -18,10 +18,25 @@ However, if an input file is specified, the data is read from that location,
 and if an output file is specified, the results are written there (note, the
 file indicated is overwritten).
 
-=head1 OPTIONS
+If neither B<-e> nor B<-d> are specified, the operation to be performed is 
+inferred based on the input data:
 
-Note, either B<-e> or B<-d> B<must> be specified.  All other arguments are 
-optional.
+=over 8
+
+=item
+
+If an explicit input file name is specified, then the name is checked to see if
+it ends in ".cfr".  If so, the file is decrypted, otherwise it's encrypted.
+
+=item
+
+If the tool is reading from standard input, the data is checked for a magic
+header string present in all ColdFusion Report files.  If that string is
+present, the data is decrypted.  Otherwise the data is encrypted.
+
+=back
+
+=head1 OPTIONS
 
 =over 8
 
