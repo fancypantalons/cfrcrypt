@@ -67,7 +67,7 @@ structure is as follows:
 
 Where K0 and K4 represent the first and last 32-bit words of the key.  The middle 
 64 bits are a hard-coded shared key.  The size represents the size of the 
-B<compressed> payload (including any additional).
+B<compressed> payload (including any additional padding).
 
 =head1 COPYRIGHT, LICENSE AND WARRANTY
 
