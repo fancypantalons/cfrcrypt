@@ -2,6 +2,7 @@
 
 use strict;
 
+use POSIX;
 use IO::File;
 use File::Temp;
 use Getopt::Long;
@@ -99,24 +100,25 @@ sub encrypt_block
 
 sub decrypt
 {
-  my ($input, $output) = @_;
+  my ($input, $output, $size) = @_;
 
   my @k = (0, @KEY, 0);
   my @v;
-  my ($header, $garbage);
+  my ($header, $size);
 
   $input->read($header, length($HEADER)); # Reader header
 
   die "Missing magic!" if ($header ne $HEADER);
 
-  $input->read($garbage, 4);
+  $input->read($size, 4);
   $input->read($k[3], 4);
   $input->read($k[0], 4);
   
+  $size = unpack("V", $size);
   $k[0] = unpack("V", $k[0]);
   $k[3] = unpack("V", $k[3]);
 
-  while (1)
+  while ($size > 0)
   {
     my $v0len = $input->read($v[0], 4);
     my $v1len = $input->read($v[1], 4);
@@ -131,9 +133,27 @@ sub decrypt
     $v[0] = pack("V", $v[0]);
     $v[1] = pack("V", $v[1]);
 
-    $output->write(substr(($v[0] . $v[1]), 0, $v0len + $v1len));
+    if ($size > 8)
+    {
+      $output->write($v[0]);
+      $output->write($v[1]);
 
-    last if (($v0len < 4) || ($v1len < 4));
+      $size -= 8;
+    }
+    else
+    {
+      if ($size > 4)
+      {
+        $output->write($v[0]);
+        $output->write(substr($v[1], 0, $size - 4));
+      }
+      else
+      {
+        $output->write(substr($v[0], 0, $size));
+      }
+
+      $size = 0;
+    }
   }
 
   $output->flush();
@@ -142,13 +162,13 @@ sub decrypt
 
 sub encrypt
 {
-  my ($input, $output) = @_;
+  my ($input, $output, $size) = @_;
 
-  my @k = (0, @KEY, 0);
+  my @k = (0xDEADBEEF, @KEY, 0x8BADF00D);
   my @v;
 
   $output->write($HEADER);
-  $output->write(pack("V", 0));
+  $output->write(pack("V", (($size % 8) != 0) ? ceil($size / 8) * 8 : $size));
   $output->write(pack("V", $k[3]));
   $output->write(pack("V", $k[0]));
 
@@ -224,7 +244,7 @@ HELP
 # Set up the input streams.
 #
 
-my ($input, $output);
+my ($input, $size, $output);
 
 if (defined $ARGV[0])
 {
@@ -233,6 +253,10 @@ if (defined $ARGV[0])
   $input = new IO::File("<" . $ARGV[0]) || die "Unable to open '$ARGV[0]': $!";
 
   IO::File::binmode($input);
+
+  $input->seek(0, 2);
+  $size = $input->tell();
+  $input->seek(0, 0);
 }
 else
 {
@@ -246,10 +270,12 @@ else
   $stdin->fdopen(fileno(STDIN), "r");
 
   $input = new File::Temp();
+  $size = 0;
 
   while (($read = $stdin->read($buf, 1024)) > 0)
   {
     $input->write($buf, $read);
+    $size += $read;
   }
 
   $input->seek(0, 0);
@@ -281,13 +307,13 @@ if ($options{decrypt} || ($ARGV[0] =~ /\.cfr$/i))
   # If the decrypt option was specified or the filename provided ends in .cfr,
   # decrypt.
 
-  decrypt($input, $output);
+  decrypt($input, $output, $size);
 }
 elsif ($options{encrypt})
 {
   # If the encrypt option was specified, just encrypt straight away.
   
-  encrypt($input, $output);
+  encrypt($input, $output, $size);
 }
 else
 {
@@ -302,11 +328,11 @@ else
 
   if ($header eq $HEADER)
   {
-    decrypt($input, $output);
+    decrypt($input, $output, $size);
   }
   else
   {
-    encrypt($input, $output);
+    encrypt($input, $output, $size);
   }
 }
 
@@ -377,12 +403,13 @@ XTEA-encrypted payload.  XTEA (http://en.wikipedia.org/wiki/XTEA) is a simple
 symmetric cipher employing 64-bit blocks and a 128-bit key.  The actual file
 structure is as follows:
 
-  | Header (27) | Unused (4) |
+  | Header (27) | Size (4)   |
   | K4 (4)      | K0 (4)     |
   |           Data           |
 
 Where K0 and K4 represent the first and last 32-bit words of the key.  The middle 
-64 bits are a hard-coded shared key.
+64 bits are a hard-coded shared key.  The size represents the size of the 
+B<compressed> payload (including any additional).
 
 =head1 COPYRIGHT, LICENSE AND WARRANTY
 

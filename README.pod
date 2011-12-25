@@ -61,12 +61,13 @@ XTEA-encrypted payload.  XTEA (http://en.wikipedia.org/wiki/XTEA) is a simple
 symmetric cipher employing 64-bit blocks and a 128-bit key.  The actual file
 structure is as follows:
 
-  | Header (27) | Unused (4) |
+  | Header (27) | Size (4)   |
   | K4 (4)      | K0 (4)     |
   |           Data           |
 
 Where K0 and K4 represent the first and last 32-bit words of the key.  The middle 
-64 bits are a hard-coded shared key.
+64 bits are a hard-coded shared key.  The size represents the size of the 
+B<compressed> payload (including any additional).
 
 =head1 COPYRIGHT, LICENSE AND WARRANTY
 
