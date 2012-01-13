@@ -351,9 +351,10 @@ cfrcrypt <-e|-d> <-o output> <input>
 =head1 DESCRIPTION
 
 ColdFusion sports a custom report file format (.cfr) which is, unfortunately,
-encoded, such that these files become opaque blobs which cannot be version
-controlled, modified via scripts, etc.  This tool makes it possible to decode
-these files, modify them, and then re-encode them for use with ColdFusion.
+encoded, such that these files become opaque blobs which can only be edited by
+ColdFusion Report Builder, and so cannot be version controlled, modified via
+scripts, etc.  This tool makes it possible to decrypt/decode these files,
+modify them, and then re-encrypt them for use with ColdFusion.
 
 By default, the tool reads from standard input and writes to standard output.
 However, if an input file is specified, the data is read from that location,
